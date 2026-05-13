@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Kabeb Weather Radar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="map"></div>
+
+<!-- ═══ HEADER ══════════════════════════════════════ -->
+<header id="hdr">
+  <div class="hd-brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+      <circle cx="17" cy="17" r="15" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="3.5 4"/>
+      <circle cx="17" cy="17" r="10" stroke="rgba(0,212,255,.38)" stroke-width="1" stroke-dasharray="3 3.5"/>
+      <circle cx="17" cy="17" r="5" stroke="rgba(0,212,255,.72)" stroke-width="1.2"/>
+      <circle cx="17" cy="17" r="2.2" fill="#00d4ff"/>
+      <line x1="17" y1="17" x2="29" y2="5.5" stroke="#00d4ff" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M17 17 L29 5.5 A15 15 0 0 0 24.5 3Z" fill="rgba(0,212,255,.13)"/>
+    </svg>
+    <div>
+      <div class="brand-name">KABEB</div>
+      <div class="brand-sub">WEATHER RADAR</div>
+    </div>
+  </div>
+
+  <div id="center-badge" class="center-badge">
+    <span class="c-dot"></span>
+    <span id="badge-txt">GLOBAL MOSAIC</span>
+    <span id="badge-prod" style="display:none" class="c-prod">REF</span>
+  </div>
+
+  <div class="hd-right">
+    <div id="nws-chip" class="alert-chip nws-c" style="display:none">
+      <span class="chip-icon">⚠</span><span id="nws-n">0</span><span>NWS</span>
+    </div>
+    <div id="kab-chip" class="alert-chip kab-c" style="display:none">
+      <span class="chip-icon">⚡</span><span id="kab-n">0</span><span>KABEB</span>
+    </div>
+    <div class="clock-wrap">
+      <span class="live-pip"></span>
+      <span id="utc-clock" class="clock">--:--:--</span>
+      <span class="clock-lbl">UTC</span>
+    </div>
+    <button id="login-btn" class="hdr-cta">SIGN IN</button>
+    <div id="user-wrap" style="display:none">
+      <button id="user-btn" class="user-pill">
+        <div id="u-av" class="u-av">?</div>
+        <div>
+          <div id="u-name" class="u-name">—</div>
+          <div id="u-role" class="u-role" style="display:none">⚡ ADMIN</div>
+        </div>
+      </button>
+    </div>
+    <div id="user-dd" class="drop-menu" style="display:none">
+      <div class="drop-row">👤 <span id="dd-email">—</span></div>
+      <div class="drop-row danger" id="dd-signout">🚪 Sign Out</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ SIDEBAR TOGGLE ══════════════════════════════ -->
+<button id="sb-tog" class="sb-tog-btn" title="Toggle sidebar">◀</button>
+
+<!-- ═══ SIDEBAR ═════════════════════════════════════ -->
+<aside id="sidebar">
+  <!-- Mode -->
+  <div class="sb-sec">
+    <div class="sb-lbl">VIEW MODE</div>
+    <div class="mode-grid">
+      <button class="mode-btn active" id="btn-global">
+        <div class="mb-icon">🌐</div><div class="mb-txt">GLOBAL</div>
+      </button>
+      <button class="mode-btn" id="btn-single">
+        <div class="mb-icon">📡</div><div class="mb-txt">SINGLE</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Product — single only -->
+  <div id="prod-sec" class="sb-sec" style="display:none">
+    <div class="sb-lbl">PRODUCT</div>
+    <div class="prod-row">
+      <button class="prod-btn active" data-p="REF"><span class="pcode">REF</span><span class="pname">Reflectivity</span></button>
+      <button class="prod-btn" data-p="VEL"><span class="pcode">VEL</span><span class="pname">Base Velocity</span></button>
+      <button class="prod-btn" data-p="CC"><span class="pcode">CC</span><span class="pname">Corr. Coeff.</span></button>
+    </div>
+  </div>
+
+  <!-- Site — single only -->
+  <div id="site-sec" class="sb-sec" style="display:none">
+    <div class="sb-lbl">RADAR SITE</div>
+    <div id="sel-card" class="sel-card" style="display:none">
+      <div><div id="sel-id" class="sel-id">—</div><div id="sel-nm" class="sel-nm">—</div></div>
+      <button id="clear-site" class="x-btn">✕</button>
+    </div>
+    <input id="site-inp" class="site-inp" type="text" placeholder="Search site ID or city…">
+    <div id="site-results" class="site-results"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="sb-sec">
+    <div class="sb-lbl">STATUS</div>
+    <div id="radar-status" class="status-row ok">
+      <span class="s-dot"></span><span id="s-txt">Ready</span>
+    </div>
+  </div>
+
+  <!-- Display -->
+  <div class="sb-sec">
+    <div class="sb-lbl">DISPLAY</div>
+    <div class="sl-row">
+      <span class="sl-lbl">Opacity</span>
+      <input type="range" id="op-sl" min="10" max="100" value="90">
+      <span id="op-val" class="sl-val">90%</span>
+    </div>
+    <div class="tog-row"><span class="t-lbl">NWS Warnings</span><button class="tog on" id="t-nws"></button></div>
+    <div class="tog-row"><span class="t-lbl">SPC Outlooks</span><button class="tog on" id="t-spc"></button></div>
+    <div class="tog-row"><span class="t-lbl">Kabeb Watches</span><button class="tog on" id="t-kab"></button></div>
+    <div class="tog-row"><span class="t-lbl">Range Rings</span><button class="tog off" id="t-rings"></button></div>
+    <div class="tog-row"><span class="t-lbl">Site Markers</span><button class="tog on" id="t-mrkrs"></button></div>
+  </div>
+
+  <!-- Admin -->
+  <div id="admin-sec" class="sb-sec admin-sec" style="display:none">
+    <div class="sb-lbl admin-lbl">⚡ ADMIN</div>
+    <div id="admin-cnt" class="admin-cnt-txt">0 active watches</div>
+    <button id="btn-issue" class="admin-issue-btn">⚡ ISSUE KABEB WATCH</button>
+    <button id="btn-clear" class="admin-clr-btn">🗑 Clear Expired</button>
+  </div>
+</aside>
+
+<!-- ═══ PRODUCT INFO PANEL (top-right) ═════════════ -->
+<div id="pp" class="pp-panel">
+  <div class="pp-top">
+    <span id="pp-title" class="pp-title">LOCAL RADAR</span>
+    <span id="pp-time" class="pp-time">--:-- -- CDT</span>
+  </div>
+  <div id="pp-bar" class="pp-bar pp-ref"></div>
+  <div id="pp-labels" class="pp-labels">
+    <span>LIGHT</span><span>MODERATE</span><span>HEAVY</span><span>EXTREME</span>
+  </div>
+  <div class="pp-foot">
+    <span id="pp-stn" class="pp-stn">GLOBAL</span>
+    <span id="pp-state" class="pp-st" style="display:none">—</span>
+  </div>
+</div>
+
+<!-- ═══ NWS WARNING PANEL ═══════════════════════════ -->
+<div id="wp" class="warn-panel def" style="display:none">
+  <button id="wp-x" class="panel-x">✕</button>
+  <div id="wp-hdr" class="wp-hdr">DANGEROUS SITUATION</div>
+  <div id="wp-act" class="wp-act">SEEK SHELTER</div>
+  <div id="wp-type" class="wp-type">—</div>
+  <div id="wp-exp" class="wp-exp">—</div>
+  <div class="wp-hr"></div>
+  <div class="wp-stats"><div id="wp-state" class="wp-badge">—</div></div>
+  <div id="wp-threat" class="wp-threat" style="display:none"></div>
+  <div class="wp-row"><span class="wk">COUNTIES</span><span id="wp-ctys" class="wv">—</span></div>
+  <div id="wp-hail-r" class="wp-row" style="display:none"><span class="wk">MAX HAIL</span><span id="wp-hail" class="wv">—</span></div>
+  <div id="wp-src-r" class="wp-row" style="display:none"><span class="wk">SOURCE</span><span id="wp-src" class="wv">—</span></div>
+  <div id="wp-more" class="wp-more" style="display:none">+<span id="wp-more-n">0</span> more warnings →</div>
+</div>
+
+<!-- ═══ KABEB WATCH PANEL ════════════════════════════ -->
+<div id="kwp" class="kwatch-panel" style="display:none">
+  <button id="kwp-x" class="panel-x">✕</button>
+  <div class="kwp-header">
+    <span class="kwp-badge">⚡ KABEB WEATHER SERVICE</span>
+  </div>
+  <div id="kwp-type" class="kwp-type">WATCH</div>
+  <div id="kwp-title" class="kwp-title">—</div>
+  <div id="kwp-exp" class="kwp-exp">—</div>
+  <div class="kwp-hr"></div>
+  <div id="kwp-desc" class="kwp-desc" style="display:none"></div>
+  <div class="kwp-issuer">ISSUED BY KABEB WEATHER SERVICE</div>
+  <div id="kwp-nav" class="kwp-nav" style="display:none">
+    <button id="kwp-prev" class="kwp-nav-btn">◀</button>
+    <span id="kwp-ctr" class="kwp-ctr">1 / 1</span>
+    <button id="kwp-next" class="kwp-nav-btn">▶</button>
+  </div>
+</div>
+
+<!-- ═══ KABEB WATCH CHIPS ════════════════════════════ -->
+<div id="watch-strip"></div>
+
+<!-- ═══ LOADING ══════════════════════════════════════ -->
+<div id="loading-bar" style="display:none">
+  <div class="ld-ring"></div><span id="ld-txt">Loading…</span>
+</div>
+
+<!-- ═══ DRAW BANNER ══════════════════════════════════ -->
+<div id="draw-banner" style="display:none">
+  <div class="db-info">
+    <div class="db-title">📍 DRAWING WATCH AREA</div>
+    <div class="db-sub">Click map · Right-click to undo last point</div>
+    <div id="db-pts" class="db-pts">0 points placed — need 3+</div>
+  </div>
+  <div class="db-actions">
+    <button id="draw-done" class="db-done" disabled>✓ FINISH</button>
+    <button id="draw-cancel" class="db-cancel">✕</button>
+  </div>
+</div>
+
+<!-- ═══ TIMELINE ══════════════════════════════════════ -->
+<div id="timeline">
+  <div class="tl-controls">
+    <button class="tl-btn" id="tl-prev">⏮</button>
+    <button class="tl-btn tl-play" id="tl-play">▶</button>
+    <button class="tl-btn" id="tl-next">⏭</button>
+  </div>
+  <div class="tl-info">
+    <div id="tl-frame" class="tl-frame">—</div>
+    <div id="tl-time" class="tl-time">—</div>
+  </div>
+  <div id="tl-track" class="tl-track"></div>
+  <div class="tl-speed">
+    <span class="spd-lbl">SPD</span>
+    <select id="spd-sel" class="spd-sel">
+      <option value="900">0.5×</option>
+      <option value="450" selected>1×</option>
+      <option value="225">2×</option>
+      <option value="110">3×</option>
+    </select>
+  </div>
+</div>
+
+<!-- ═══ SIGN IN MODAL ════════════════════════════════ -->
+<div id="login-modal" class="modal-bg" style="display:none">
+  <div class="modal-card">
+    <button id="m-close" class="m-x">✕</button>
+    <div class="m-title">KABEB ACCOUNT</div>
+    <div class="m-tabs">
+      <button class="m-tab active" id="tab-in">Sign In</button>
+      <button class="m-tab" id="tab-reg">Register</button>
+    </div>
+    <div id="m-err" class="m-err" style="display:none"></div>
+    <div class="m-field"><label>EMAIL</label><input id="m-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+    <div class="m-field"><label>PASSWORD</label><input id="m-pass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <button id="m-go" class="m-submit">SIGN IN</button>
+    <p class="m-note">Admin access auto-granted for authorized accounts.</p>
+  </div>
+</div>
+
+<!-- ═══ ISSUE WATCH MODAL ════════════════════════════ -->
+<div id="watch-modal" class="modal-bg" style="display:none">
+  <div class="modal-card modal-wide">
+    <button id="wm-close" class="m-x">✕</button>
+    <div class="m-title">ISSUE KABEB WATCH</div>
+    <div id="wm-err" class="m-err" style="display:none"></div>
+    <div class="m-field">
+      <label>WATCH TYPE</label>
+      <select id="wt-type">
+        <option value="TORNADO_WATCH">Tornado Watch</option>
+        <option value="TORNADO_EMERGENCY">Tornado Emergency</option>
+        <option value="SVR_WATCH">Severe Thunderstorm Watch</option>
+        <option value="FLASH_FLOOD_WATCH">Flash Flood Watch</option>
+        <option value="WINTER_STORM_WATCH">Winter Storm Watch</option>
+        <option value="FIRE_WEATHER_WATCH">Fire Weather Watch</option>
+        <option value="HURRICANE_WATCH">Hurricane Watch</option>
+        <option value="SPECIAL_STATEMENT">Special Statement</option>
+      </select>
+    </div>
+    <div class="m-row">
+      <div class="m-field f1"><label>TITLE / HEADLINE</label><input id="wt-title" type="text" placeholder="e.g. Tornado Watch 412"></div>
+      <div class="m-field f0"><label>COLOR</label><input id="wt-color" type="color" value="#FF0000" class="color-pick"></div>
+    </div>
+    <div class="m-field">
+      <label>DURATION</label>
+      <select id="wt-dur">
+        <option value="1">1 hour</option><option value="2" selected>2 hours</option>
+        <option value="3">3 hours</option><option value="6">6 hours</option>
+        <option value="12">12 hours</option><option value="24">24 hours</option>
+      </select>
+    </div>
+    <div class="m-field"><label>DETAILS / DESCRIPTION</label><textarea id="wt-desc" rows="3" placeholder="Affected areas, hazards…"></textarea></div>
+    <div id="poly-status" class="poly-status">⚠ Draw the watch area first</div>
+    <div class="m-actions">
+      <button id="btn-draw-area" class="mb mb-sec">📍 Draw Area</button>
+      <button id="btn-issue-submit" class="mb mb-pri">⚡ Issue Watch</button>
+      <button id="btn-issue-cancel" class="mb mb-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="sites.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
